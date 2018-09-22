@@ -21,15 +21,14 @@ extern "C" {
 
 // ---------------------------- Function Prototypes ---------------------------
 
-int16_t xyToPixel(uint16_t x, uint16_t y);
-void setPixelXY(uint16_t x, uint16_t y, uint32_t color);
+void updateDisplay();
+int16_t xyToPixel(int16_t x, int16_t y);
+void setPixelXY(int16_t x, int16_t y, uint32_t color);
 void fillDisplay(uint32_t color);
-void showChar(uint8_t ch, uint32_t color, uint16_t posX, uint16_t posY);
-void showText(const char * msg, uint32_t color, uint16_t posX, uint16_t posY);
+void showChar(uint8_t ch, uint32_t color, int16_t posX, int16_t posY);
+void showText(const char * msg, uint32_t color, int16_t posX, int16_t posY);
 void scrollUp(const char * msg, uint32_t color, uint16_t posX, uint16_t wait);
 void scrollDown(const char * msg, uint32_t color, uint16_t posX, uint16_t wait);
-void scrollRight(const char * msg, uint32_t color, int16_t posX, uint16_t wait);
-void scrollLeft(const char * msg, uint32_t color, int16_t posX, uint16_t wait);
 void scrollHorizontal(const char * msg, uint32_t color, int16_t startPosX, int16_t endPosX, int16_t posY, int8_t dir, uint16_t wait);
 
 // ------------------------------ Initializations -----------------------------
@@ -49,12 +48,13 @@ int main(){
     leds.begin();
     leds.show();
 
-    // create mapping array
+    // create mapping array and initialize frame buffer
     uint16_t x, y;
     uint16_t pixel = leds.numPixels() - SIZE_X;
     for(y = 0; y < SIZE_Y; y++){
         for(x = 0; x < SIZE_X; x++){
             pixelMap[x][y] = pixel++;
+            frameBuffer[x][y] = 0;
         }
         pixel -= 2 * SIZE_X;
     }
@@ -63,46 +63,54 @@ int main(){
     uint32_t cycleCount = 0;
 
     while(1){
+        scrollHorizontal("NEW ORLEANS", colors[cycleCount++ % 3], SIZE_X, -66, 0, -1, 40);
         
-        //fillDisplay(0);
-        //scrollLeft("NEW ORLEANS       ", 18, colors[cycleCount++ % 3], 5);
-        scrollHorizontal("NEW ORLEANS", colors[cycleCount++ % 3], SIZE_X, -66, 0, -1, 25);
-        /*
         scrollDown("CLASS", COLOR_PURPLE, 2, 30);
         delay(1000);
         scrollUp("OF", COLOR_GOLD, 11, 30);
         delay(1000);
         scrollDown("2022", COLOR_GREEN, 5, 30);
         delay(1500);
-        */
     }
 }
 
 // ----------------------------- Helper Functions -----------------------------
 
-int16_t xyToPixel(uint16_t x, uint16_t y){
-    if(x < SIZE_X && y < SIZE_Y){
+void updateDisplay(){
+    uint16_t x, y;
+    for(y = 0; y < SIZE_Y; y++){
+        for(x = 0; x < SIZE_X; x++){
+            leds.setPixel(pixelMap[x][y], frameBuffer[x][y]);
+        }
+    }
+    leds.show();
+}
+
+int16_t xyToPixel(int16_t x, int16_t y){
+    if((x > -1) && (x < SIZE_X) && (y > -1) && (y < SIZE_Y)){
         return pixelMap[x][y];
     }else{
         return -1;
     }
 }
 
-void setPixelXY(uint16_t x, uint16_t y, uint32_t color){
+void setPixelXY(int16_t x, int16_t y, uint32_t color){
     int16_t pixel = xyToPixel(x, y);
     if(pixel > -1){
-        leds.setPixel(pixel, color);
+        frameBuffer[x][y] = color;
     }
 }
 
 void fillDisplay(uint32_t color){
-    uint16_t pixel;
-    for(pixel = 0; pixel < leds.numPixels(); pixel++){
-        leds.setPixel(pixel, color);
+    uint16_t x, y;
+    for(y = 0; y < SIZE_Y; y++){
+        for(x = 0; x < SIZE_X; x++){
+            frameBuffer[x][y] = color;
+        }
     }
 }
 
-void showChar(uint8_t ch, uint32_t color, uint16_t posX, uint16_t posY){
+void showChar(uint8_t ch, uint32_t color, int16_t posX, int16_t posY){
     uint16_t x, y;
     for(x = 0; x < FONT_W; x++){
         for(y = 0; y < FONT_H; y++){
@@ -111,10 +119,9 @@ void showChar(uint8_t ch, uint32_t color, uint16_t posX, uint16_t posY){
             }
         }
     }
-    leds.show();
 }
 
-void showText(const char * msg, uint32_t color, uint16_t posX, uint16_t posY){
+void showText(const char * msg, uint32_t color, int16_t posX, int16_t posY){
     uint16_t i = 0;
     while(msg[i] != '\0'){
         showChar(msg[i], color, posX + (i * 6), posY);
@@ -127,6 +134,7 @@ void scrollUp(const char * msg, uint32_t color, uint16_t posX, uint16_t wait){
     for(y = SIZE_Y; y >= 0; y--){
         fillDisplay(0);
         showText(msg, color, posX, y);
+        updateDisplay();
         delay(wait);
     }
 }
@@ -136,46 +144,18 @@ void scrollDown(const char * msg, uint32_t color, uint16_t posX, uint16_t wait){
     for(y = -FONT_H; y <= 0; y++){
         fillDisplay(0);
         showText(msg, color, posX, y);
-        delay(wait);
-    }
-}
-
-void scrollRight(const char * msg, uint32_t color, int16_t posX, uint16_t wait){
-    int16_t length, x = 0;
-    while(*msg != '\0'){
-        msg++;
-        length++;
-    }
-    msg -= length;
-
-    for(x = length * -6; x <= posX; x++){
-        fillDisplay(0);
-        showText(msg, color, x, 0);
-        delay(wait);
-    }
-}
-
-void scrollLeft(const char * msg, uint32_t color, int16_t posX, uint16_t wait){
-    int16_t length, x = 0;
-    while(*msg != '\0'){
-        msg++;
-        length++;
-    }
-    msg -= length;
-
-    for(x = SIZE_X; x >= posX; x--){
-        fillDisplay(0);
-        showText(msg, color, x, 0);
+        updateDisplay();
         delay(wait);
     }
 }
 
 void scrollHorizontal(const char * msg, uint32_t color, int16_t startPosX, int16_t endPosX, int16_t posY, int8_t dir, uint16_t wait){
-    int16_t x, y;
+    int16_t x;
     
     for(x = startPosX; x != (endPosX + dir); x += dir){
         fillDisplay(0);
         showText(msg, color, x, posY);
+        updateDisplay();
         delay(wait);
     }
 }
